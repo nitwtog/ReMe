@@ -264,9 +264,9 @@ async def evaluation_for_question(
         dialogue=dialogue if dialogue else "",
     )
 
-    result = await reme.get_llm("qwen3_max_instruct").simple_request_for_json(
+    result = await reme.get_llm(model_name).simple_request_for_json(
         prompt=prompt,
-        model_name=model_name,
+        model_name=None,
     )
 
     return result
