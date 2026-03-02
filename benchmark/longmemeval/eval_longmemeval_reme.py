@@ -286,7 +286,7 @@ async def answer_question_with_memories(
         question=question,
     )
 
-    result = await reme.get_llm(name=model_name).simple_request_for_json(
+    result = await reme.get_llm(model_name).simple_request_for_json(
         prompt=prompt,
         model_name=None,
     )
@@ -558,6 +558,13 @@ class LongMemEvalEvaluator:
                     "model_name": "qwen3-max",
                     "extra_body": {
                         "enable_thinking": True,
+                    },
+                },
+                "qwen3-max": {
+                    "backend": "openai",
+                    "model_name": "qwen3-max",
+                    "extra_body": {
+                        "enable_thinking": False,
                     },
                 },
             },
@@ -966,7 +973,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_concurrency",
         type=int,
-        default=16,
+        default=4,
         help="Maximum concurrent question processing (default: 1)",
     )
     parser.add_argument(
@@ -998,13 +1005,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--algo_version",
         type=str,
-        default="longmemeval",
+        default="default",
         help="Algorithm version for summary and retrieval (default: v1)",
     )
     parser.add_argument(
         "--samples_per_type",
         type=int,
-        default=16,
+        default=2,
         help="Number of samples per question type, -1 for all (default: -1)",
     )
     parser.add_argument(

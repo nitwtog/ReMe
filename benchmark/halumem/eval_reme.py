@@ -993,7 +993,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--algo_version",
         type=str,
-        default="v1",
+        default="default",
         help="Algorithm version for summary and retrieval (default: v1)",
     )
     parser.add_argument(
