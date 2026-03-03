@@ -988,8 +988,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_path",
         type=str,
-        # default="/Users/zhouwk/PycharmProjects/MemAgent/dataset/longmemeval/longmemeval_s_cleaned.json",
-        default="/Users/zhouwk/PycharmProjects/MemAgent/dataset/longmemeval/longmemeval_oracle.json",
+        required=True,
         help="Path to LongMemEval JSON file",
     )
     parser.add_argument(

@@ -1421,8 +1421,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_path",
         type=str,
-        # required=True,
-        default="/Users/zhouwk/PycharmProjects/MemAgent/dataset/halumem/HaluMem-Medium.jsonl",
+        required=True,
         help="Path to HaluMem JSONL file",
     )
     parser.add_argument(
