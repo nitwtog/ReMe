@@ -2,8 +2,8 @@
 """Unified test suite for vector store implementations.
 
 This module provides comprehensive test coverage for LocalVectorStore, ESVectorStore,
-PGVectorStore, QdrantVectorStore, ChromaVectorStore, ObVecVectorStore and ZvecVectorStore implementations.
-Tests can be run for specific vector stores or all implementations.
+PGVectorStore, QdrantVectorStore, ChromaVectorStore, ObVecVectorStore, HologresVectorStore, and
+ZvecVectorStore implementations. Tests can be run for specific vector stores or all implementations.
 
 Usage:
     python test_vector_store.py --local      # Test LocalVectorStore only
@@ -12,6 +12,7 @@ Usage:
     python test_vector_store.py --qdrant     # Test QdrantVectorStore only
     python test_vector_store.py --chroma     # Test ChromaVectorStore only
     python test_vector_store.py --obvec      # Test ObVecVectorStore only (needs seekdb / OceanBase)
+    python test_vector_store.py --hologres   # Test HologresVectorStore only
     python test_vector_store.py --zvec       # Test ZvecVectorStore only
     python test_vector_store.py --all        # Test all vector stores
 """
@@ -32,6 +33,7 @@ from reme.core.utils import load_env, cosine_similarity
 from reme.core.vector_store import (
     BaseVectorStore,
     ChromaVectorStore,
+    HologresVectorStore,
     LocalVectorStore,
     ESVectorStore,
     ObVecVectorStore,
@@ -92,6 +94,19 @@ class TestConfig:
     OBVEC_PASSWORD = os.environ.get("OBVEC_PASSWORD", "root")
     OBVEC_DATABASE = os.environ.get("OBVEC_DATABASE", "test")
 
+    # HologresVectorStore settings
+    HOLOGRES_DSN = os.environ.get(
+        "HOLOGRES_DSN",
+        "",
+    )  # Full DSN connection string (overrides host/port/database/user/password)
+    HOLOGRES_HOST = os.environ.get("HOLOGRES_HOST", "localhost")
+    HOLOGRES_PORT = int(os.environ.get("HOLOGRES_PORT", "80"))
+    HOLOGRES_DATABASE = os.environ.get("HOLOGRES_DATABASE", "postgres")
+    HOLOGRES_USER = os.environ.get("HOLOGRES_USER", "postgres")
+    HOLOGRES_PASSWORD = os.environ.get("HOLOGRES_PASSWORD", "")
+    HOLOGRES_SCHEMA = os.environ.get("HOLOGRES_SCHEMA", "public")
+    HOLOGRES_MIN_SIZE = 1
+    HOLOGRES_MAX_SIZE = 5
     # ZvecVectorStore settings
     ZVEC_PATH = "./test_vector_store_zvec"  # For local persistent mode
 
@@ -205,7 +220,7 @@ def get_store_type(store: BaseVectorStore) -> str:
         store: Vector store instance
 
     Returns:
-        str: Type identifier ("local", "es", "pgvector", "qdrant", "chroma", "obvec", or "zvec")
+        str: Type identifier ("local", "es", "pgvector", "qdrant", "chroma", "obvec", "zvec", or "hologres")
     """
     if isinstance(store, LocalVectorStore):
         return "local"
@@ -221,6 +236,8 @@ def get_store_type(store: BaseVectorStore) -> str:
         return "obvec"
     elif isinstance(store, ZvecVectorStore):
         return "zvec"
+    elif isinstance(store, HologresVectorStore):
+        return "hologres"
     else:
         raise ValueError(f"Unknown vector store type: {type(store)}")
 
@@ -230,7 +247,7 @@ def create_vector_store(store_type: str, collection_name: str) -> BaseVectorStor
     """Create a vector store instance based on type.
 
     Args:
-        store_type: Type of vector store ("local", "es", "pgvector", "qdrant", "chroma", or "obvec")
+        store_type: Type of vector store ("local", "es", "pgvector", "qdrant", "chroma", "obvec", or "hologres")
         collection_name: Name of the collection
 
     Returns:
@@ -312,6 +329,23 @@ def create_vector_store(store_type: str, collection_name: str) -> BaseVectorStor
             dimension=config.EMBEDDING_DIMENSIONS,
             distance="cosine",
         )
+    elif store_type == "hologres":
+        kwargs = {
+            "collection_name": collection_name,
+            "embedding_model": embedding_model,
+            "db_path": tempfile.mkdtemp(prefix="test_hologres_"),
+            "host": config.HOLOGRES_HOST,
+            "port": config.HOLOGRES_PORT,
+            "database": config.HOLOGRES_DATABASE,
+            "user": config.HOLOGRES_USER,
+            "password": config.HOLOGRES_PASSWORD,
+            "schema": config.HOLOGRES_SCHEMA,
+            "min_size": config.HOLOGRES_MIN_SIZE,
+            "max_size": config.HOLOGRES_MAX_SIZE,
+        }
+        if config.HOLOGRES_DSN:
+            kwargs["dsn"] = config.HOLOGRES_DSN
+        return HologresVectorStore(**kwargs)
     else:
         raise ValueError(f"Unknown store type: {store_type}")
 
@@ -631,7 +665,7 @@ async def test_copy_collection(store: BaseVectorStore, store_name: str):
 
     # Elasticsearch, PostgreSQL and OceanBase require lowercase table/index names
     store_type = get_store_type(store)
-    if store_type in ("es", "pgvector", "obvec"):
+    if store_type in ("es", "pgvector", "obvec", "hologres"):
         copy_collection_name = copy_collection_name.lower()
 
     # Clean up if exists
@@ -1835,6 +1869,7 @@ Examples:
   python test_vector_store.py --qdrant     # Test QdrantVectorStore only
   python test_vector_store.py --chroma     # Test ChromaVectorStore only
   python test_vector_store.py --obvec      # Test ObVecVectorStore (seekdb / OceanBase)
+  python test_vector_store.py --hologres   # Test HologresVectorStore
   python test_vector_store.py --all        # Test all vector stores
         """,
     )
@@ -1869,6 +1904,11 @@ Examples:
         help="Test ObVecVectorStore",
     )
     parser.add_argument(
+        "--hologres",
+        action="store_true",
+        help="Test HologresVectorStore",
+    )
+    parser.add_argument(
         "--zvec",
         action="store_true",
         help="Test ZvecVectorStore",
@@ -1892,6 +1932,7 @@ Examples:
             ("qdrant", "QdrantVectorStore"),
             ("chroma", "ChromaVectorStore"),
             ("obvec", "ObVecVectorStore"),
+            ("hologres", "HologresVectorStore"),
             ("zvec", "ZvecVectorStore"),
         ]
     else:
@@ -1908,6 +1949,8 @@ Examples:
             stores_to_test.append(("chroma", "ChromaVectorStore"))
         if args.obvec:
             stores_to_test.append(("obvec", "ObVecVectorStore"))
+        if args.hologres:
+            stores_to_test.append(("hologres", "HologresVectorStore"))
         if args.zvec:
             stores_to_test.append(("zvec", "ZvecVectorStore"))
 
@@ -1920,11 +1963,12 @@ Examples:
                 ("qdrant", "QdrantVectorStore"),
                 ("chroma", "ChromaVectorStore"),
                 ("obvec", "ObVecVectorStore"),
+                ("hologres", "HologresVectorStore"),
                 ("zvec", "ZvecVectorStore"),
             ]
             print("No vector store specified, defaulting to test all vector stores")
             print(
-                "Use --local/--es/--pgvector/--qdrant/--chroma/--obvec/--zvec to test specific ones\n",
+                "Use --local/--es/--pgvector/--qdrant/--chroma/--obvec/--zvec/--hologres to test specific ones\n",
             )
 
     # Run tests for each vector store

@@ -34,6 +34,7 @@ FlowLLM provides multiple Vector Store implementations tailored to different use
 - **ChromaVectorStore** ([source code](https://github.com/flowllm-ai/flowllm/blob/main/flowllm/core/vector_store/chroma_vector_store.py)): Based on ChromaDB, providing persistent storage and metadata filtering capabilities.
 - **EsVectorStore** ([source code](https://github.com/flowllm-ai/flowllm/blob/main/flowllm/core/vector_store/es_vector_store.py)): Built on Elasticsearch, enabling powerful combined full-text and vector search functionalities.
 - **ObVecVectorStore** ([source code](https://github.com/agentscope-ai/ReMe/blob/main/reme/core/vector_store/obvec_vector_store.py)): Uses [pyobvector](https://pypi.org/project/pyobvector/) against **OceanBase** or **seekdb** (MySQL-compatible wire protocol). Suitable when you already run OceanBase/seekdb or need a SQL-native vector table with HNSW-style ANN search and JSON metadata filters.
+- **HologresVectorStore** ([source code](https://github.com/agentscope-ai/ReMe/blob/main/reme/core/vector_store/hologres_store.py)): Uses [asyncpg](https://pypi.org/project/asyncpg/) against **Hologres** (PostgreSQL-compatible). Leverages native `float4[]` vector storage with built-in HGraph index for approximate nearest neighbor search. Suitable when you already run Hologres or need high-performance vector search with JSONB metadata filtering in a PostgreSQL-compatible environment.
 - **ZvecVectorStore** ([source code](https://github.com/agentscope-ai/ReMe/blob/main/reme/core/vector_store/zvec_vector_store.py)): Built on zvec, a high-performance local vector database with strong-schema support and HNSW indexing. Suitable for single-machine deployments requiring fast vector search.
 
 All Vector Store implementations inherit from **BaseVectorStore** ([source code](https://github.com/agentscope-ai/ReMe/blob/main/reme/core/vector_store/base_vector_store.py)) in ReMe, ensuring a consistent interface specification.
@@ -137,6 +138,20 @@ OBVEC_PASSWORD=<your_root_password> python tests/test_vector_store.py --obvec
 - **dimension**: Dimensionality of the embedding vectors (default: `1024`).
 - **distance**: Distance metric — supports `cosine`, `l2`, `ip` (default: `cosine`).
 
+### HologresVectorStore Configuration
+
+- **host**: Hologres host address (default: `localhost`).
+- **port**: Hologres port (default: `80`).
+- **database**: Database name (default: `postgres`).
+- **user**: Database user (default: `postgres`).
+- **password**: Database password.
+- **schema**: PostgreSQL schema name (default: `public`).
+- **min_size**: Minimum connections in pool (default: `1`).
+- **max_size**: Maximum connections in pool (default: `10`).
+- **dsn**: Full DSN connection string. When provided, overrides `host`, `port`, `database`, `user`, and `password`.
+- **distance_method**: Distance method for the HGraph index: `Cosine`, `InnerProduct`, or `Euclidean` (default: `Cosine`).
+- **collection_name**: Table name for the collection (from `VectorStoreConfig`, default `reme`).
+
 ## Configuration File Examples
 
 Configure Vector Store in `flowllm/config/default.yaml` under the `vector_store` section. The basic structure is as follows:
@@ -157,7 +172,7 @@ vector_store.default.params.<param_name>=<param_value>
 
 ### Configuration Field Descriptions
 
-- **`backend`** (required): Vector store backend type. Options: `local`, `memory`, `chroma`, `qdrant`, `elasticsearch`, `obvec`, `zvec`.
+- **`backend`** (required): Vector store backend type. Options: `local`, `memory`, `chroma`, `qdrant`, `elasticsearch`, `obvec`, `zvec`, `hologres`.
 - **`embedding_model`** (required): Name of the embedding model configuration, referencing the `embedding_model` section.
 - **`params`** (optional): Dictionary of backend-specific parameters passed to the vector store constructor.
 
@@ -353,7 +368,37 @@ vector_stores.default.password=your-root-password
 
 ReMe service YAML uses the key `vector_stores` (plural); CLI overrides use the same nested paths.
 
-#### 7. ZvecVectorStore Configuration
+#### 7. HologresVectorStore Configuration
+
+**Implementation**: [`reme/core/vector_store/hologres_store.py`](https://github.com/agentscope-ai/ReMe/blob/main/reme/core/vector_store/hologres_store.py)
+
+**Example (Hologres instance)**:
+
+```yaml
+vector_stores:
+  default:
+    backend: hologres
+    embedding_model: default
+    collection_name: reme
+    host: "your-hologres-host"
+    port: 80
+    database: "postgres"
+    user: "postgres"
+    password: "your-password"
+    schema: "public"
+    distance_method: "Cosine"
+```
+
+```shell
+vector_stores.default.backend=hologres
+vector_stores.default.host=your-hologres-host
+vector_stores.default.port=80
+vector_stores.default.user=postgres
+vector_stores.default.password=your-password
+vector_stores.default.database=postgres
+```
+
+#### 8. ZvecVectorStore Configuration
 
 Persistent local storage based on zvec with HNSW indexing and strong-schema support.
 
@@ -434,10 +479,11 @@ Two types of metadata filtering are supported:
 
 - **Development & Testing**: Use MemoryVectorStore or LocalVectorStore—no additional services required.
 - **Small-Scale Applications**: Use LocalVectorStore or ChromaVectorStore for simplicity and ease of use.
-- **Production Environments**: Use QdrantVectorStore, EsVectorStore, or ObVecVectorStore (OceanBase/seekdb) for high performance and scalability, depending on your existing infrastructure.
+- **Production Environments**: Use QdrantVectorStore, EsVectorStore, ObVecVectorStore (OceanBase/seekdb), or HologresVectorStore for high performance and scalability, depending on your existing infrastructure.
 - **High-Performance Local Search**: Use ZvecVectorStore for single-machine deployments requiring fast HNSW-based vector search with local persistence.
 - **Hybrid Search**: Use EsVectorStore to combine vector search with full-text search capabilities.
 - **OceanBase / seekdb**: Use ObVecVectorStore when you standardize on pyobvector and SQL-accessible vector tables.
+- **Hologres**: Use HologresVectorStore when you run Hologres and need native HGraph-indexed vector search with PostgreSQL-compatible SQL and JSONB metadata filtering.
 
 ## Important Notes
 
